@@ -40,21 +40,34 @@ if (QRC_SYNTAX)
     set(SYNTAX_DATA_QRC_FILES_STRING ${qrc_body})
     configure_file(syntax-data.qrc.in ${qrc_file} @ONLY)
 
+    file(TO_NATIVE_PATH "${CMAKE_CURRENT_BINARY_DIR}/index.katesyntax" _kate_syntax)
+    file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/schema/language.xsd" _schema_language)
+    file(TO_NATIVE_PATH "${CMAKE_CURRENT_BINARY_DIR}/qrc_syntax-data.cpp" _syntax_data_cpp)
+
     # generate the index file
-    add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/index.katesyntax"
-    COMMAND katehighlightingindexer "${CMAKE_CURRENT_BINARY_DIR}/index.katesyntax" "${CMAKE_CURRENT_SOURCE_DIR}/schema/language.xsd" "${CMAKE_CURRENT_BINARY_DIR}/syntax-data.qrc"
-    DEPENDS ${defs} ${CMAKE_CURRENT_SOURCE_DIR}/schema/language.xsd ${CMAKE_CURRENT_BINARY_DIR}/syntax-data.qrc
-    )
+    #add_custom_command(OUTPUT "${_kate_syntax}"
+    #  COMMAND katehighlightingindexer ${_kate_syntax} ${_schema_language} ${qrc_file}
+    #  DEPENDS ${defs} "${_schema_language}" "${qrc_file}"
+    #  COMMENT "Creating ${_kate_syntax}"
+    #)
+    # the above does not seem to work with certain generators, so we pre-generated it
+    # and copy it now
+    add_custom_command(OUTPUT "${_kate_syntax}"
+        COMMAND ${CMAKE_COMMAND} -E copy
+                "${CMAKE_CURRENT_LIST_DIR}/index.katesyntax"
+                "${_kate_syntax}")
 
     # generate the qrc file manually, to make dependencies on generated files work...
-    add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/qrc_syntax-data.cpp"
-        COMMAND ${Qt5Core_RCC_EXECUTABLE} --name syntax_data -o "${CMAKE_CURRENT_BINARY_DIR}/qrc_syntax-data.cpp" "${CMAKE_CURRENT_BINARY_DIR}/syntax-data.qrc"
-        DEPENDS ${defs} ${CMAKE_CURRENT_BINARY_DIR}/index.katesyntax
+    add_custom_command(OUTPUT "${_syntax_data_cpp}"
+        COMMAND ${Qt5Core_RCC_EXECUTABLE} --name syntax_data -o "${_syntax_data_cpp}" "${qrc_file}"
+        DEPENDS ${defs} "${_kate_syntax}"
+        COMMENT "Creating ${_syntax_data_cpp}"
     )
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/qrc_syntax-data.cpp" PROPERTIES SKIP_AUTOMOC ON)
+    set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/qrc_syntax-data.cpp" PROPERTY SKIP_AUTOGEN ON)
 
     # object library to make cross-folder dependencies work, themes + syntax files
-    add_library(SyntaxHighlightingData OBJECT ${themes_QRC} ${CMAKE_CURRENT_BINARY_DIR}/qrc_syntax-data.cpp)
+    add_library(SyntaxHighlightingData OBJECT ${themes_QRC} "${CMAKE_CURRENT_BINARY_DIR}/qrc_syntax-data.cpp")
 else()
     # install the syntax files as normal files into the prefix
     install (FILES ${defs} DESTINATION share/org.kde.syntax-highlighting/syntax)
